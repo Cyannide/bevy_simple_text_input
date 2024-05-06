@@ -62,7 +62,8 @@ impl Plugin for TextInputPlugin {
             .add_systems(
                 Update,
                 (
-                    keyboard,
+                    ime,
+                    keyboard.after(ime),
                     update_value.after(keyboard),
                     (blink_cursor, show_hide_cursor, update_color)
                         .chain()
@@ -300,6 +301,75 @@ impl InnerText<'_, '_> {
         self.children_query
             .iter_descendants(entity)
             .find(|descendant_entity| self.text_query.get(*descendant_entity).is_ok())
+    }
+}
+
+fn ime(
+    mut events: EventReader<Ime>,
+    mut text_input_query: Query<(
+        Entity,
+        &TextInputSettings,
+        &TextInputInactive,
+        &mut TextInputValue,
+        &mut TextInputCursorPos,
+        &mut TextInputCursorTimer,
+    )>,
+    mut submit_writer: EventWriter<TextInputSubmitEvent>,
+    mut windows: Query<&mut Window>,
+) {
+    if events.is_empty() {
+        return;
+    }
+
+    for (input_entity, settings, inactive, mut text_input, mut cursor_pos, mut cursor_timer) in
+        &mut text_input_query
+    {
+        if inactive.0 {
+            continue;
+        }
+
+        let mut submitted_value = None;
+
+        for event in events.read() {
+            match event {
+                Ime::Preedit { value, cursor, .. } if !cursor.is_none() => {
+                    debug!("IME Preedit: {value}");
+                }
+                Ime::Preedit { cursor, .. } if cursor.is_none() => {
+                    debug!("IME Preedit");
+                }
+                Ime::Commit { content, .. } => {
+                    debug!("IME Commit: {content}");
+                    if content.contains("\n") {
+                        windows.single_mut().ime_enabled = false;
+                        if settings.retain_on_submit {
+                            submitted_value = Some(text_input.0.clone());
+                        } else {
+                            submitted_value = Some(std::mem::take(&mut text_input.0));
+                            cursor_pos.0 = 0;
+                        };
+                    } else {
+                        text_input.0 = content.to_string();
+                        cursor_pos.0 = content.len();
+                        cursor_timer.should_reset = true;
+                    }
+                }
+                Ime::Enabled { .. } => {
+                    debug!("IME Enabled");
+                }
+                Ime::Disabled { .. } => {
+                    debug!("IME Enabled");
+                }
+                _ => (),
+            }
+        }
+
+        if let Some(value) = submitted_value {
+            submit_writer.send(TextInputSubmitEvent {
+                entity: input_entity,
+                value,
+            });
+        }
     }
 }
 
