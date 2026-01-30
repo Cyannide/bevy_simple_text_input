@@ -37,7 +37,7 @@ use bevy::{
     prelude::*,
     text::{LineBreak, TextLayoutInfo},
     ui::FocusPolicy,
-	window::PrimaryWindow,
+    window::PrimaryWindow,
 };
 
 /// A Bevy `Plugin` providing the systems and assets required to make a [`TextInput`] work.
@@ -276,10 +276,13 @@ pub struct TextInputPlaceholder {
     ///
     /// If `None`, the text input color will be used with alpha value of `0.25`.
     pub text_color: Option<TextColor>,
+    /// Always show placeholder when field is empty
+    ///
+    pub always_visible_when_empty: bool,
 }
 
 #[derive(Component, Reflect)]
-struct TextInputPlaceholderInner;
+struct TextInputPlaceholderInner(bool);
 
 /// A component containing the current text cursor position.
 #[derive(Component, Default, Reflect)]
@@ -747,7 +750,8 @@ fn create(
             .text_color
             .unwrap_or_else(|| placeholder_color(&color.0));
 
-        let placeholder_visible = inactive.0 && text_input.0.is_empty();
+        let placeholder_visible =
+            (placeholder.always_visible_when_empty || inactive.0) && text_input.0.is_empty();
 
         let placeholder_text = commands
             .spawn((
@@ -756,7 +760,7 @@ fn create(
                 placeholder_font,
                 placeholder_color,
                 Name::new("TextInputPlaceholderInner"),
-                TextInputPlaceholderInner,
+                TextInputPlaceholderInner(placeholder.always_visible_when_empty),
                 if placeholder_visible {
                     Visibility::Inherited
                 } else {
@@ -764,6 +768,7 @@ fn create(
                 },
                 Node {
                     position_type: PositionType::Absolute,
+                    margin: UiRect::left(Val::Px(5.0)),
                     ..default()
                 },
             ))
@@ -869,12 +874,13 @@ fn show_hide_placeholder(
         (&Children, &TextInputValue, &TextInputInactive),
         Or<(Changed<TextInputValue>, Changed<TextInputInactive>)>,
     >,
-    mut vis_query: Query<&mut Visibility, With<TextInputPlaceholderInner>>,
+    //mut vis_query: Query<&mut Visibility, With<TextInputPlaceholderInner>>,
+    mut vis_query: Query<(&mut Visibility, &TextInputPlaceholderInner)>,
 ) {
     for (children, text, inactive) in &input_query {
         let mut iter = vis_query.iter_many_mut(children);
-        while let Some(mut inner_vis) = iter.fetch_next() {
-            inner_vis.set_if_neq(if text.0.is_empty() && inactive.0 {
+        while let Some((mut inner_vis, inner_holder)) = iter.fetch_next() {
+            inner_vis.set_if_neq(if text.0.is_empty() && (inner_holder.0 || inactive.0) {
                 Visibility::Inherited
             } else {
                 Visibility::Hidden
