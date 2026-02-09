@@ -299,7 +299,7 @@ pub struct TextInputCursorPos(pub usize);
 struct TextInputInner;
 
 /// A message that is broadcast when the user presses the enter key.
-#[derive(Message)]
+#[derive(Message, EntityEvent)]
 pub struct TextInputSubmitMessage {
     /// The text input that triggered the event.
     pub entity: Entity,
@@ -329,7 +329,9 @@ impl InnerText<'_, '_> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn keyboard(
+    mut commands: Commands,
     key_input: Res<ButtonInput<KeyCode>>,
     input_events: Res<Messages<KeyboardInput>>,
     mut input_reader: Local<MessageCursor<KeyboardInput>>,
@@ -466,8 +468,14 @@ fn keyboard(
         if let Some(value) = submitted_value {
             submit_writer.write(TextInputSubmitMessage {
                 entity: input_entity,
-                value,
+                value: value.clone(),
             });
+            commands
+                .entity(input_entity)
+                .trigger(|input_entity| TextInputSubmitMessage {
+                    entity: input_entity,
+                    value,
+                });
         }
     }
 
