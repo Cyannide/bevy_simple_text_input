@@ -315,6 +315,15 @@ pub struct TextInputMaxLengthMessage {
     pub entity: Entity,
 }
 
+/// An event that is fired when the text input changes
+#[derive(EntityEvent)]
+pub struct TextInputValueChanged {
+    /// The text input that triggered the event.
+    pub entity: Entity,
+    /// The string contained in the text input at the time of the event.
+    pub value: String,
+}
+
 /// A convenience parameter for dealing with a text input's inner Bevy `Text` entity.
 #[derive(SystemParam)]
 struct InnerText<'w, 's> {
@@ -483,6 +492,7 @@ fn keyboard(
 }
 
 fn update_value(
+    mut commands: Commands,
     mut input_query: Query<
         (
             Entity,
@@ -518,6 +528,12 @@ fn update_value(
         *writer.text(inner, 1) = values.0;
         *writer.text(inner, 2) = values.1;
         *writer.text(inner, 3) = values.2;
+        commands
+            .entity(entity)
+            .trigger(|entity| TextInputValueChanged {
+                entity,
+                value: text_input.0.clone(),
+            });
     }
 }
 

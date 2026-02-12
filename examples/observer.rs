@@ -3,6 +3,7 @@
 use bevy::prelude::*;
 use bevy_simple_text_input::{
     TextInput, TextInputPlugin, TextInputSubmitMessage, TextInputTextColor, TextInputTextFont,
+    TextInputValueChanged,
 };
 
 const BORDER_COLOR_ACTIVE: Color = Color::srgb(0.75, 0.52, 0.99);
@@ -46,6 +47,9 @@ fn setup(mut commands: Commands) {
                     }),
                     TextInputTextColor(TextColor(TEXT_COLOR)),
                 ))
+                .observe(|message: On<TextInputValueChanged>| {
+                    info!("value of {:?} changed: {}", message.entity, message.value);
+                })
                 .observe(|message: On<TextInputSubmitMessage>| {
                     info!("{:?} submitted: {}", message.entity, message.value);
                 });
